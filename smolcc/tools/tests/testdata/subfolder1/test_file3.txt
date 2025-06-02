@@ -1,0 +1,4 @@
+This is another test file in a subfolder.
+It can be used to test nested directory searches.
+It contains some important words like function, class, and interface.
+This file should be found by appropriate GREP and GLOB patterns.

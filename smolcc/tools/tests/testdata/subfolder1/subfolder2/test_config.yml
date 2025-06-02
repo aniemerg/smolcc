@@ -1,0 +1,32 @@
+# Test YAML configuration file
+version: '1.0'
+name: test-config-yaml
+
+environment: development
+
+server:
+  host: localhost
+  port: 8080
+  debug: true
+  timeout: 30s
+
+database:
+  driver: postgres
+  host: db.example.com
+  port: 5432
+  name: testdb
+  user: testuser
+  password: ${DB_PASSWORD}
+
+logging:
+  level: info
+  file: /var/log/app.log
+  rotate: daily
+  max_size: 100MB
+  max_backups: 7
+
+features:
+  - authentication
+  - authorization
+  - caching
+  - rate_limiting

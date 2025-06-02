@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "smolcc"
+version = "0.1.0"
+description = "A small code assistant with tool-using capabilities"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    {name = "SmolCC Team"}
+]
+dependencies = [
+    "smolagents",
+    "python-dotenv",
+    "litellm",
+]
+scripts = { smolcc = "main:main" }
+
+[tool.setuptools]
+packages = ["smolcc", "smolcc.tools"]
+
+[tool.setuptools.package-data]
+"smolcc.tools" = ["*.py"]
+"smolcc" = ["system_message.txt"]

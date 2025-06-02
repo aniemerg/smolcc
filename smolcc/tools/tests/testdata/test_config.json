@@ -1,0 +1,23 @@
+{
+  "name": "test-config",
+  "version": "1.0.0",
+  "description": "A test configuration file for testing tools",
+  "settings": {
+    "debug": true,
+    "port": 3000,
+    "timeout": 30000,
+    "log_level": "info"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "testdb",
+    "user": "test_user"
+  },
+  "features": [
+    "search",
+    "filter",
+    "sort",
+    "pagination"
+  ]
+}

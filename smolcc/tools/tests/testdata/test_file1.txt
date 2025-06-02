@@ -1,0 +1,5 @@
+This is a test file for testing the View tool.
+It contains multiple lines of text.
+Line 3 contains some content.
+Line 4 contains more content.
+Line 5 contains the final line of content.
