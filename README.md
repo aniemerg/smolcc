@@ -25,7 +25,7 @@ A lightweight code assistant with tool-using capabilities built on HuggingFace's
 
 1. Clone this repository:
    ```bash
-   git clone [https://github.com/fabiopauli/smolcc.git]
+   git clone [[https://github.com/fabiopauli/smolcc.git]](https://github.com/fabiopauli/smolcc.git)
    cd smolcc
    ```
 
