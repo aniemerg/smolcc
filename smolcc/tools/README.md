@@ -141,9 +141,9 @@ Run the included test script to test the GrepTool against example inputs:
 
 ```
 # Activate the virtual environment first
-source /Users/allanniemerg/dev2/smolclaude/.venv/bin/activate
+source <your_project_root>/.venv/bin/activate
 # Or use the full path to the Python interpreter
-/Users/allanniemerg/dev2/smolclaude/.venv/bin/python test_grep_tool.py
+<your_project_root>/.venv/bin/python test_grep_tool.py
 ```
 
 ## FileEditTool
@@ -204,8 +204,9 @@ from smolagents import ToolCallingAgent, LiteLLMModel
 
 # Create a model
 model = LiteLLMModel(
-    model_id="claude-3-7-sonnet-20250219",
-    api_key="your_api_key"
+    model_id="deepseek/deepseek-chat",
+    api_key=os.getenv("DEEPSEEK_API_KEY"),
+    base_url="https://api.deepseek.com"
 )
 
 # Create an agent with multiple tools
@@ -338,7 +339,7 @@ Run the included test script to test the BashTool:
 
 ```
 # Activate the virtual environment first
-source /Users/allanniemerg/dev2/smolclaude/.venv/bin/activate
+source <your_project_root>/.venv/bin/activate
 # Or use the full path to the Python interpreter
-/Users/allanniemerg/dev2/smolclaude/.venv/bin/python test_bash_tool.py
+<your_project_root>/.venv/bin/python test_bash_tool.py
 ```

@@ -87,14 +87,23 @@ class GlobToolTests(unittest.TestCase):
         # Check that each expected file is in the results
         for expected_file in expected_files:
             found = False
+            # Normalize expected file path for cross-platform compatibility
+            expected_normalized = expected_file.replace('/', os.sep)
+            
             for file_path in found_files:
-                if os.path.basename(file_path) == expected_file or expected_file in file_path:
+                # Normalize the file path and check multiple ways
+                file_normalized = os.path.normpath(file_path)
+                
+                if (os.path.basename(file_path) == os.path.basename(expected_file) or
+                    expected_normalized in file_normalized or
+                    expected_file in file_path.replace('\\', '/') or
+                    file_path.endswith(expected_normalized)):
                     found = True
                     break
                     
             self.assertTrue(
                 found, 
-                f"File '{expected_file}' was not found in glob results"
+                f"File '{expected_file}' was not found in glob results. Found files: {found_files}"
             )
 
     def test_find_text_files(self):

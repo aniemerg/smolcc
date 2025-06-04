@@ -73,13 +73,25 @@ def get_system_prompt(cwd=None):
     template_path = os.path.join(os.path.dirname(__file__), 'system_message.txt')
     
     try:
-        with open(template_path, 'r') as f:
+        # Explicitly specify UTF-8 encoding to handle special characters
+        with open(template_path, 'r', encoding='utf-8') as f:
             system_message = f.read()
     except FileNotFoundError:
         raise FileNotFoundError(f"Could not find system_message.txt at {template_path}")
+    except UnicodeDecodeError:
+        # If UTF-8 fails, try with error handling
+        try:
+            with open(template_path, 'r', encoding='utf-8', errors='ignore') as f:
+                system_message = f.read()
+        except Exception as e:
+            raise RuntimeError(f"Could not read system_message.txt: {e}")
     
-    # Get current date in format M/D/YYYY
-    today = datetime.datetime.now().strftime("%-m/%-d/%Y")
+    # Get current date in format M/D/YYYY (Windows-compatible)
+    today = datetime.datetime.now()
+    if platform.system() == 'Windows':
+        date_format = f"{today.month}/{today.day}/{today.year}"
+    else:
+        date_format = today.strftime("%-m/%-d/%Y")
     
     # Check if directory is a git repo
     is_repo = is_git_repo(cwd)
@@ -91,8 +103,8 @@ def get_system_prompt(cwd=None):
     system_message = system_message.replace("{working_directory}", cwd)
     system_message = system_message.replace("{is_git_repo}", "Yes" if is_repo else "No")
     system_message = system_message.replace("{platform}", platform.system().lower())
-    system_message = system_message.replace("{date}", today)
-    system_message = system_message.replace("{model}", "claude-3-7-sonnet-20250219")
+    system_message = system_message.replace("{date}", date_format)
+    system_message = system_message.replace("{model}", "deepseek-chat")  # Updated for DeepSeek
     
     # Replace the directory structure placeholder
     system_message = system_message.replace("{directory_structure}", dir_structure)

@@ -16,22 +16,22 @@ First, make sure the `smolcc` package is in your Python path. You can:
 1. **Install the package in development mode from the project root**:
 
 ```bash
-# From the project root (smolclaude directory)
+# From the project root (smolcc directory)
 pip install -e .
 ```
 
 2. **Or set the PYTHONPATH environment variable**:
 
 ```bash
-# From the project root (smolclaude directory)
-export PYTHONPATH=$PYTHONPATH:/Users/allanniemerg/dev2/smolclaude
+# From the project root (smolcc directory)
+export PYTHONPATH=$PYTHONPATH:<your_project_root>
 ```
 
 3. **Or add a .pth file to your site-packages directory**:
 
 ```bash
 # Create a .pth file with the path to your project
-echo "/Users/allanniemerg/dev2/smolclaude" > $(python -c "import site; print(site.getsitepackages()[0])")/smolcc.pth
+echo "<your_project_root>" > $(python -c "import site; print(site.getsitepackages()[0])")/smolcc.pth
 ```
 
 Then you can run the tests using the provided script:
