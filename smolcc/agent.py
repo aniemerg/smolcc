@@ -34,7 +34,10 @@ def get_available_tools():
     
     # List of tools to try importing (filename, tool_instance_name)
     tool_configs = [
+<<<<<<< HEAD
         ("cd_tool.py", "cd_tool"),
+=======
+>>>>>>> faa7c7d8da6b7fd7484a790f4922b2b67c622062
         ("edit_tool.py", "file_edit_tool"),
         ("glob_tool.py", "glob_tool"),
         ("grep_tool.py", "grep_tool"),

@@ -115,6 +115,7 @@ class PowerShellTool(Tool):
         Returns:
             The command output or error message
         """
+<<<<<<< HEAD
         try:
             # For tests, use a fresh PowerShell process for each command to avoid state bleed
             # This sacrifices session persistence but ensures test reliability
@@ -146,6 +147,71 @@ class PowerShellTool(Tool):
             
         except Exception as e:
             return f"Error executing command: {str(e)}"
+=======
+        # Add Write-Host commands to mark the beginning and end of output
+        full_command = f"{command}; Write-Host '{self.output_marker}'\n"
+        
+        # Send the command to the PowerShell process
+        self.shell_process.stdin.write(full_command)
+        self.shell_process.stdin.flush()
+        
+        # Read output until we get to our marker
+        stdout_lines = []
+        stderr_lines = []
+        start_time = time.time()
+        
+        while True:
+            # Check if we've exceeded the timeout
+            if time.time() - start_time > timeout_sec:
+                self._kill_current_command()
+                return f"Command timed out after {timeout_sec} seconds"
+            
+            # Try to read a line from stdout or stderr
+            output_line, is_stderr = self._read_line_nonblocking_with_source()
+            if output_line is None:
+                # No data available, sleep a bit and try again
+                time.sleep(0.1)
+                continue
+            
+            # Check if we've reached our marker
+            if self.output_marker in output_line:
+                break
+            
+            # Add the line to our output (separate stdout and stderr)
+            if is_stderr:
+                stderr_lines.append(output_line)
+            else:
+                stdout_lines.append(output_line)
+            
+            # Check if we've exceeded the max output size
+            total_length = sum(len(line) for line in stdout_lines) + sum(len(line) for line in stderr_lines)
+            if total_length > MAX_OUTPUT_CHARS:
+                # Truncate in the middle
+                stdout_text = "".join(stdout_lines)
+                stdout_lines = [self._format_truncated_output(stdout_text)]
+                # Continue reading until we find the marker, but don't save more output
+                while self.output_marker not in self._read_line_blocking():
+                    pass
+                break
+        
+        # Combine all output lines
+        stdout = "".join(stdout_lines)
+        stderr = "".join(stderr_lines)
+        
+        # remove trailing newline if present
+        stdout = stdout.rstrip('\n\r')
+        
+        # For simple Write-Host commands, we need to handle potential escaping 
+        if command.strip().startswith('Write-Host '):
+            # Check if we need to escape characters
+            stdout = self._format_write_host_output(stdout)
+        
+        # If there's stderr content, combine them appropriately
+        if stderr:
+            return self._format_result_with_stderr(stdout, stderr)
+            
+        return stdout
+>>>>>>> faa7c7d8da6b7fd7484a790f4922b2b67c622062
     
     def _read_line_nonblocking_with_source(self) -> tuple[Optional[str], bool]:
         """

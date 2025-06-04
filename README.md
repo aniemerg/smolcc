@@ -25,7 +25,11 @@ A lightweight code assistant with tool-using capabilities built on HuggingFace's
 
 1. Clone this repository:
    ```bash
+<<<<<<< HEAD
    git clone https://github.com/aniemerg/smolcc.git
+=======
+   git clone https://github.com/fabiopauli/smolcc.git
+>>>>>>> faa7c7d8da6b7fd7484a790f4922b2b67c622062
    cd smolcc
    ```
 
