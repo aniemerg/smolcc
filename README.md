@@ -1,6 +1,6 @@
 # SmolCC
 
-A lightweight code assistant with tool-using capabilities built on HuggingFace's smolagents. Inspired by the tool use in Claude Code, this project provides a simple, easy-to-use interface with access to a range of tools for file manipulation, text search, and command execution.
+A lightweight code assistant with tool-using capabilities built on HuggingFace's smolagents. Inspired by the tool use in DeepSeek Chat, this project provides a simple, easy-to-use interface with access to a range of tools for file manipulation, text search, and command execution.
 
 ## Features
 
@@ -19,13 +19,13 @@ A lightweight code assistant with tool-using capabilities built on HuggingFace's
 ### Prerequisites
 
 - Python 3.11 or higher
-- An Anthropic API key
+- A DeepSeek Chat API key
 
 ### Setting up the environment
 
 1. Clone this repository:
    ```bash
-   git clone https://github.com/yourusername/smolcc.git
+   git clone https://github.com/aniemerg/smolcc.git
    cd smolcc
    ```
 
@@ -38,11 +38,13 @@ A lightweight code assistant with tool-using capabilities built on HuggingFace's
 3. Install the package:
    ```bash
    pip install -e .
+   # Alternatively, use uv for faster installation:
+   uv pip install -e .
    ```
 
-4. Create a `.env` file with your Anthropic API key:
+4. Create a `.env` file with your DeepSeek Chat API key:
    ```
-   ANTHROPIC_API_KEY=your_api_key_here
+   DEEPSEEK_API_KEY=your_api_key_here
    ```
 
 ## Usage
