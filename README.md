@@ -2,6 +2,8 @@
 
 A lightweight code assistant with tool-using capabilities built on HuggingFace's smolagents. Inspired by the tool use in Claude Code, this project provides a simple, easy-to-use interface with access to a range of tools for file manipulation, text search, and command execution. Features rich terminal UI output for an improved user experience.
 
+![SmolCC Screenshot](screen.jpg)
+
 ## Features
 
 - Rich terminal UI with syntax highlighting and formatted output

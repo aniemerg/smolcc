@@ -107,7 +107,10 @@ class ToolAgent(ToolCallingAgent):
         Returns:
             The result of the tool execution
         """
-        # Display the tool call
+        # Special handling for final_answer or final_output
+        is_final_answer = tool_name.lower() in ("final_answer", "final_output")
+        
+        # Display the tool call (always show what tool is being called)
         tool_call_output = ToolCallOutput(tool_name, tool_arguments)
         tool_call_output.display(self.console)
         
@@ -130,15 +133,16 @@ class ToolAgent(ToolCallingAgent):
         # Convert the result to a ToolOutput if it's not already
         output = convert_to_tool_output(result)
         
-        # Display the output
-        output.display(self.console)
-        
-        # Log the execution time if it was slow
-        if execution_time > 1.0:
-            self.console.print(f"  ⏱️ {execution_time:.2f}s", style="bright_black")
-        
-        # Add a blank line after each tool output for better readability
-        self.console.print()
+        # Display the output (skip for final_answer since it will be displayed again)
+        if not is_final_answer:
+            output.display(self.console)
+            
+            # Log the execution time if it was slow
+            if execution_time > 1.0:
+                self.console.print(f"  ⏱️ {execution_time:.2f}s", style="bright_black")
+            
+            # Add a blank line after each tool output for better readability
+            self.console.print()
         
         # Return the raw result for the agent to use
         return result
@@ -154,9 +158,7 @@ class ToolAgent(ToolCallingAgent):
         Returns:
             The agent's response
         """
-        # Show the user's query in a darker gray
-        self.console.print(f"> {user_input}", style="dim")
-        self.console.print()  # Add blank line after user input
+        # We no longer show the user's input, they already know what they typed
         
         # Run the agent without a spinner - leave LLM spinners to _format_messages_for_llm
         try:

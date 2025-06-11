@@ -49,11 +49,16 @@ def main():
     # Create the agent
     agent = create_agent(working_dir, log_file)
     
+    # Removed show-prompt environment variable
+    
     # Handle the query based on arguments
     if args.interactive:
         run_interactive_mode(agent)
     elif args.query:
         query = " ".join(args.query)
+        
+        # Removed debug prompt code
+        
         agent.run(query)
     else:
         parser.print_help()
@@ -70,14 +75,25 @@ def run_interactive_mode(agent):
     from rich.console import Console
     from rich.panel import Panel
     from rich.text import Text
+    from rich.syntax import Syntax
     
     console = Console()
     
     # Display welcome header
     welcome_text = Text()
-    welcome_text.append("SmolCC Interactive Mode", style="bold cyan")
-    welcome_text.append("\nEnter your queries (type 'exit' or 'quit' to end)")
-    console.print(Panel(welcome_text, expand=False))
+    welcome_text.append("                                                      \n", style="magenta")
+    welcome_text.append("                   smolCC                             \n", style="bold magenta")
+    welcome_text.append("                                                      \n", style="magenta")
+    welcome_text.append("  A lightweight code assistant for your terminal      \n", style="magenta")
+    welcome_text.append("  Built on smolagents with enhanced terminal UI       \n", style="magenta")
+    welcome_text.append("                                                      \n", style="magenta")
+    welcome_text.append("  • Enter queries for smolCC to help with code tasks  \n", style="dim magenta")
+    welcome_text.append("  • Type 'exit' or 'quit' to end the session          \n", style="dim magenta")
+    welcome_text.append("  • Use '/help' for more commands                     \n", style="dim magenta")
+    welcome_text.append("                                                      \n", style="magenta")
+    console.print(Panel(welcome_text, expand=False, border_style="magenta"))
+    
+    # Debug system prompt code removed
     
     while True:
         try:
