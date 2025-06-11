@@ -137,6 +137,9 @@ class EnhancedToolAgent(ToolCallingAgent):
         if execution_time > 1.0:
             self.console.print(f"  ⏱️ {execution_time:.2f}s", style="bright_black")
         
+        # Add a blank line after each tool output for better readability
+        self.console.print()
+        
         # Return the raw result for the agent to use
         return result
     
@@ -151,8 +154,9 @@ class EnhancedToolAgent(ToolCallingAgent):
         Returns:
             The agent's response
         """
-        # Show that we're processing the query
-        self.console.print(f"\n[cyan]Processing:[/cyan] {user_input}")
+        # Show the user's query in a darker gray
+        self.console.print(f"> {user_input}", style="dim")
+        self.console.print()  # Add blank line after user input
         
         # Run the agent without a spinner - leave LLM spinners to _format_messages_for_llm
         try:
@@ -162,9 +166,15 @@ class EnhancedToolAgent(ToolCallingAgent):
             self.logger.log_error(f"Error running agent: {str(e)}")
             return f"Error: {str(e)}"
         
+        # Add blank line before final answer
+        self.console.print()
+        
         # Display the result as an assistant message
         assistant_output = AssistantOutput(result)
         assistant_output.display(self.console)
+        
+        # Add blank line after the response
+        self.console.print()
         
         return result
         

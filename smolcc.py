@@ -82,7 +82,7 @@ def run_interactive_mode(agent):
     while True:
         try:
             # Use Rich's prompt
-            query = console.input("[cyan]>[/cyan] ")
+            query = console.input("[cyan bold]>[/cyan bold] ")
             
             if query.lower() in ("exit", "quit"):
                 console.print("[yellow]Exiting SmolCC...[/yellow]")

@@ -119,7 +119,7 @@ class CodeOutput(ToolOutput):
     def display(self, console: Console) -> None:
         """Display the code with styling."""
         # Start with the result indicator
-        console.print("  ⎿", style="bright_black", end=" ")
+        console.print("  ⎿", style="bright_black")
         
         # Show a preview and summary for long code blocks
         if isinstance(self.data, str) and self.data.count("\n") > 10:
@@ -132,7 +132,7 @@ class CodeOutput(ToolOutput):
                 first_few_lines,
                 self.language,
                 theme=self.theme,
-                line_numbers=False
+                line_numbers=True
             )
             console.print(syntax)
             console.print(f"     ... (+{line_count-3} more lines)", style="bright_black")
@@ -201,12 +201,11 @@ class FileListOutput(ToolOutput):
     
     def display(self, console: Console) -> None:
         """Display the file listing with UI styling."""
-        # Start with the result indicator
-        console.print("  ⎿", style="bright_black")
-        
-        # Display the path
+        # Start with the result indicator and immediately add path
         if self.path:
-            console.print(f"Directory: {self.path}", style="blue bold")
+            console.print(f"  ⎿ Directory: {self.path}", style="bright_black")
+        else:
+            console.print("  ⎿", style="bright_black")
         
         # Create a table for the file listing
         table = Table(box=None, show_header=True, show_edge=False)
@@ -244,7 +243,7 @@ class AssistantOutput(ToolOutput):
     
     def display(self, console: Console) -> None:
         """Display the assistant message with UI styling."""
-        console.print(f"⏺ {self.data}", style="green")
+        console.print(f"{self.data}", style="white")
 
 
 # Helper function to convert plain results to appropriate ToolOutput objects
