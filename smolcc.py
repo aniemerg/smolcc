@@ -89,7 +89,7 @@ def run_interactive_mode(agent):
     welcome_text.append("                                                      \n", style="magenta")
     welcome_text.append("  • Enter queries for smolCC to help with code tasks  \n", style="dim magenta")
     welcome_text.append("  • Type 'exit' or 'quit' to end the session          \n", style="dim magenta")
-    welcome_text.append("  • Use '/help' for more commands                     \n", style="dim magenta")
+    welcome_text.append("                                                      \n", style="dim magenta")
     welcome_text.append("                                                      \n", style="magenta")
     console.print(Panel(welcome_text, expand=False, border_style="magenta"))
     
