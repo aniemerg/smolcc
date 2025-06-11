@@ -12,6 +12,7 @@ import re
 from typing import Dict, Any, List
 
 from smolcc.tools.glob_tool import glob_tool
+from smolcc.tool_output import ToolOutput, FileListOutput
 
 # Constants
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -62,39 +63,58 @@ EXPECTED_PATTERNS = {
 class GlobToolTests(unittest.TestCase):
     """Tests for the GlobTool."""
 
-    def _verify_glob_results(self, result: str, expected_files: List[str]) -> None:
+    def _verify_glob_results(self, result: ToolOutput, expected_files: List[str]) -> None:
         """
         Verify that the glob result contains the expected files.
         
         Args:
-            result: The result string from the glob tool
+            result: The result from the glob tool
             expected_files: List of expected filenames (without full paths)
         """
-        # Split the result into lines
-        found_files = result.strip().split('\n')
+        self.assertIsInstance(result, ToolOutput)
+        
+        # Get filenames from the result
+        if isinstance(result, FileListOutput):
+            found_files = [file.get('name', '') for file in result.data]
+            # Also get full paths to check against relative paths in expected_files
+            found_paths = [file.get('path', '').replace(TEST_DATA_DIR + '/', '') for file in result.data]
+        else:
+            # Fallback to string representation for backward compatibility
+            result_str = str(result)
+            found_files = result_str.strip().split('\n')
+            found_paths = found_files
         
         # Check if we got any results
-        if not found_files[0]:
+        if len(found_files) == 1 and not found_files[0]:
             found_files = []
+            found_paths = []
             
         # Verify we found the right number of files
         self.assertEqual(
             len(found_files), 
             len(expected_files), 
-            f"Expected {len(expected_files)} files, but found {len(found_files)}"
+            f"Expected {len(expected_files)} files, but found {len(found_files)}: {found_files}"
         )
         
         # Check that each expected file is in the results
         for expected_file in expected_files:
             found = False
-            for file_path in found_files:
-                if os.path.basename(file_path) == expected_file or expected_file in file_path:
-                    found = True
-                    break
-                    
+            # Check various ways the file might be represented
+            expected_basename = os.path.basename(expected_file)
+            
+            # Try exact match on basename
+            if expected_basename in found_files:
+                found = True
+            # Try path contains check
+            elif any(expected_file in path for path in found_paths):
+                found = True
+            # Try basename contains check on all paths
+            elif any(expected_basename in os.path.basename(path) for path in found_paths):
+                found = True
+            
             self.assertTrue(
                 found, 
-                f"File '{expected_file}' was not found in glob results"
+                f"File '{expected_file}' was not found in glob results: {found_files}"
             )
 
     def test_find_text_files(self):
