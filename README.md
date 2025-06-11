@@ -71,7 +71,6 @@ This project uses a standard Python package structure:
 
 - `smolcc/` - The main package
   - `tools/` - Tool implementations
-    - `examples/` - Example usage of tools
     - `tests/` - Unit tests for tools
 
 ## License

@@ -1,8 +1,8 @@
 import os
-from typing import Optional
+from typing import Optional, Any, Dict, List
 from dotenv import load_dotenv
 
-from smolagents import CodeAgent, ToolCallingAgent, LiteLLMModel
+from smolagents import CodeAgent, ToolCallingAgent, LiteLLMModel, LogLevel
 
 # Import tool modules to get their instances
 from smolcc.tools.bash_tool import bash_tool
@@ -26,8 +26,97 @@ model = LiteLLMModel(
     api_key=os.getenv("ANTHROPIC_API_KEY")
 )
 
+import io
+from contextlib import redirect_stdout, redirect_stderr
+from rich.console import Console
+
+class SilentToolAgent(ToolCallingAgent):
+    """
+    A modified version of ToolCallingAgent that suppresses tool execution output
+    from appearing in the console, while maintaining the agent's ability to
+    use tool results in its reasoning.
+    """
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Save the original console
+        self._original_console = self.logger.console
+        
+        # Create a null console for suppressing output
+        self._null_console = Console(file=io.StringIO())
+        
+        # Create a debug log file
+        with open("tool_agent_debug.log", "w") as f:
+            f.write("SilentToolAgent debug log initialized\n")
+    
+    def execute_tool_call(self, tool_name, tool_arguments):
+        """
+        Override execute_tool_call to capture and suppress the tool output.
+        """
+        # Log that we're executing a tool
+        with open("tool_agent_debug.log", "a") as f:
+            f.write(f"\n==== EXECUTING TOOL: {tool_name} ====\n")
+            f.write(f"Arguments: {tool_arguments}\n")
+        
+        # Temporarily replace the logger's console with our null console
+        self.logger.console = self._null_console
+        
+        # Capture stdout/stderr during execution
+        stdout_buffer = io.StringIO()
+        stderr_buffer = io.StringIO()
+        
+        with redirect_stdout(stdout_buffer), redirect_stderr(stderr_buffer):
+            # Execute the tool call
+            result = super().execute_tool_call(tool_name, tool_arguments)
+        
+        # Restore the original console
+        self.logger.console = self._original_console
+        
+        # Log the result (but not to the console)
+        with open("tool_agent_debug.log", "a") as f:
+            f.write(f"==== TOOL RESULT ====\n")
+            f.write(f"Result: {str(result)[:100]}...\n")
+            f.write(f"Captured stdout: {stdout_buffer.getvalue()[:100]}...\n")
+            f.write(f"Captured stderr: {stderr_buffer.getvalue()[:100]}...\n")
+            f.write("==== END TOOL RESULT ====\n")
+        
+        return result
+    
+    def run(self, user_input, stream=False):
+        """
+        Override run method to suppress "Observations:" output.
+        """
+        # Log the user input
+        with open("tool_agent_debug.log", "a") as f:
+            f.write(f"\n==== RUNNING QUERY ====\n")
+            f.write(f"User input: {user_input}\n")
+        
+        # Create a stdout capture buffer
+        stdout_buffer = io.StringIO()
+        
+        # Execute with stdout redirected
+        with redirect_stdout(stdout_buffer):
+            result = super().run(user_input, stream)
+            
+            # Extract and log the stdout content
+            stdout_content = stdout_buffer.getvalue()
+            with open("tool_agent_debug.log", "a") as f:
+                f.write(f"==== STDOUT CAPTURE ====\n")
+                f.write(stdout_content[:500])
+                f.write("\n==== END STDOUT CAPTURE ====\n")
+            
+            # Filter out the "Observations:" lines from stdout
+            filtered_lines = []
+            for line in stdout_content.splitlines():
+                if not line.strip().startswith("Observations:"):
+                    filtered_lines.append(line)
+            
+            # Print the filtered output
+            print("\n".join(filtered_lines))
+        
+        return result
+
 def create_agent(cwd=None):
-    """Create a tool-calling agent with the system prompt."""
+    """Create a silent tool-calling agent with the system prompt."""
     if cwd is None:
         cwd = os.getcwd()
     
@@ -42,7 +131,7 @@ def create_agent(cwd=None):
     )
     
     # Initialize the agent with all tools
-    agent = ToolCallingAgent(
+    agent = SilentToolAgent(
         tools=[
             bash_tool,
             file_edit_tool,
