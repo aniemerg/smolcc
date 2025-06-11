@@ -1,23 +1,25 @@
 """
-GlobTool for SmolCC - File pattern matching tool
+GlobTool for SmolCC - File pattern matching tool with rich output
 
-This tool allows finding files using glob pattern matching.
-It supports standard glob patterns and returns matching files sorted by modification time.
+This tool allows finding files using glob pattern matching and returns
+rich output objects for better display in the terminal.
 """
 
 import glob as glob_module
 import os
 import pathlib
 import time
-from typing import List, Optional, Dict, Any, Tuple
+from typing import List, Optional, Dict, Any, Tuple, Union
+from datetime import datetime
 
 from smolagents import Tool
+from smolcc.tool_output import ToolOutput, FileListOutput, TextOutput
 
 
 class GlobTool(Tool):
     """
     Fast file pattern matching tool that works with any codebase size.
-    Supports glob patterns and returns matching files sorted by modification time.
+    Supports glob patterns and returns matching files as rich FileListOutput.
     """
     
     name = "GlobTool"
@@ -34,16 +36,16 @@ class GlobTool(Tool):
     }
     output_type = "string"
     
-    def forward(self, pattern: str, path: Optional[str] = None) -> str:
+    def forward(self, pattern: str, path: Optional[str] = None) -> Union[ToolOutput, str]:
         """
-        Find files matching the given glob pattern.
+        Find files matching the given glob pattern with rich output.
         
         Args:
             pattern: The glob pattern to match files against (e.g. "**/*.py")
             path: The directory to search in (defaults to current working directory)
             
         Returns:
-            A newline-separated list of matching file paths
+            A FileListOutput object for rich display
         """
         start_time = time.time()
         search_path = path or os.getcwd()
@@ -51,28 +53,38 @@ class GlobTool(Tool):
         # Make sure search_path is absolute
         search_path = os.path.abspath(search_path) if not os.path.isabs(search_path) else search_path
         
-        # Use pathlib to handle paths and patterns
-        base_path = pathlib.Path(search_path)
+        # Verify path exists
+        if not os.path.exists(search_path):
+            return TextOutput(f"Error: Path '{search_path}' does not exist")
+        if not os.path.isdir(search_path):
+            return TextOutput(f"Error: Path '{search_path}' is not a directory")
         
         # Find matching files and determine if results are truncated
         matching_files, truncated = self._find_matching_files(pattern, search_path, limit=100, offset=0)
         
-        # Format the result for the assistant
-        result_str = self._format_result_for_assistant(matching_files, truncated)
+        # If no files found, return a simple message
+        if not matching_files:
+            return TextOutput(f"No files found matching pattern '{pattern}' in '{search_path}'")
+        
+        # Convert to rich file info format
+        file_info_list = self._convert_to_file_info(matching_files)
         
         # Calculate duration in milliseconds
         duration_ms = int((time.time() - start_time) * 1000)
         
-        # Create structured output data
-        output_data = {
-            "filenames": matching_files,
-            "durationMs": duration_ms,
-            "numFiles": len(matching_files),
-            "truncated": truncated
-        }
+        # Add a note about truncation if needed
+        if truncated:
+            truncation_note = f"(Results limited to 100 files. Consider using a more specific pattern.)"
+            file_info_list.append({
+                "name": truncation_note,
+                "is_dir": False,
+                "size": "",
+                "modified_date": "",
+                "path": ""
+            })
         
-        # We need to return a string with a structured format
-        return result_str
+        # Return as FileListOutput for rich display
+        return FileListOutput(file_info_list, path=f"{search_path} (pattern: {pattern})")
     
     def _find_matching_files(self, pattern: str, search_path: str, limit: int = 100, offset: int = 0) -> Tuple[List[str], bool]:
         """
@@ -143,27 +155,54 @@ class GlobTool(Tool):
         
         return paginated_matches, truncated
     
-    def _format_result_for_assistant(self, files: List[str], truncated: bool) -> str:
+    def _convert_to_file_info(self, file_paths: List[str]) -> List[Dict[str, Any]]:
         """
-        Format the file list as a string for the assistant.
+        Convert file paths to rich file info dictionaries.
         
         Args:
-            files: List of file paths
-            truncated: Whether the results were truncated
+            file_paths: List of file paths
             
         Returns:
-            Formatted string result
+            List of file info dictionaries
         """
-        if not files:
-            return "No files found"
+        file_info_list = []
         
-        result = "\n".join(files)
+        for file_path in file_paths:
+            try:
+                # Get file stats
+                stats = os.stat(file_path)
+                
+                # Format size
+                size = stats.st_size
+                if size < 1024:
+                    size_str = f"{size} B"
+                elif size < 1024 * 1024:
+                    size_str = f"{size / 1024:.1f} KB"
+                else:
+                    size_str = f"{size / (1024 * 1024):.1f} MB"
+                
+                # Format modification time
+                modified_date = datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+                
+                # Create file info
+                file_info = {
+                    "name": os.path.basename(file_path),
+                    "is_dir": False,  # We only match files, not directories
+                    "size": size,
+                    "size_str": size_str,
+                    "modified": int(stats.st_mtime),
+                    "modified_date": modified_date,
+                    "path": file_path
+                }
+                
+                file_info_list.append(file_info)
+            except (PermissionError, FileNotFoundError):
+                # Skip files we can't access
+                continue
         
-        # Only add truncation message if results were actually truncated
-        if truncated:
-            result += "\n(Results are truncated. Consider using a more specific path or pattern.)"
-            
-        return result
+        return file_info_list
+
 
 # Export the tool as an instance that can be directly used
 glob_tool = GlobTool()
+enhanced_glob_tool = glob_tool  # Alias for backward compatibility

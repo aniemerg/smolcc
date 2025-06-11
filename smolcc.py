@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-SmolCC - A lightweight code assistant with enhanced UI.
+SmolCC - A lightweight code assistant with rich terminal UI.
 
 This script provides a command line interface to the SmolCC agent
 with improved terminal output using Rich.
@@ -8,16 +8,16 @@ with improved terminal output using Rich.
 import sys
 import os
 import argparse
-from smolcc.enhanced_agent import create_enhanced_agent
+from smolcc.agent import create_agent
 
 
 def main():
     """
-    Main entry point for SmolCC with enhanced UI.
+    Main entry point for SmolCC.
     Handles command line arguments and runs the agent.
     """
     parser = argparse.ArgumentParser(
-        description="SmolCC - A lightweight code assistant with enhanced UI"
+        description="SmolCC - A lightweight code assistant with rich terminal UI"
     )
     parser.add_argument(
         "query", nargs="*", help="Query to send to Claude"
@@ -46,8 +46,8 @@ def main():
     # Configure logging
     log_file = None if args.no_log else args.log_file
     
-    # Create the enhanced agent
-    agent = create_enhanced_agent(working_dir, log_file)
+    # Create the agent
+    agent = create_agent(working_dir, log_file)
     
     # Handle the query based on arguments
     if args.interactive:

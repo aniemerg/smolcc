@@ -1,8 +1,8 @@
 """
-GrepTool for SmolCC - Content search tool
+GrepTool for SmolCC - Content search tool with rich output
 
-This tool allows searching file contents using regular expressions.
-It supports full regex syntax and can filter files by pattern.
+This tool allows searching file contents using regular expressions and returns
+rich output objects with highlighted matches for better display in the terminal.
 """
 
 import os
@@ -11,15 +11,16 @@ import glob as glob_module
 import fnmatch
 import time
 from pathlib import Path
-from typing import List, Optional, Dict, Any
+from typing import List, Optional, Dict, Any, Tuple, Union
 
 from smolagents import Tool
+from smolcc.tool_output import ToolOutput, CodeOutput, TextOutput, TableOutput, FileListOutput
 
 
 class GrepTool(Tool):
     """
     Fast content search tool that works with any codebase size.
-    Searches file contents using regular expressions.
+    Searches file contents using regular expressions with rich output.
     """
     
     name = "GrepTool"
@@ -40,9 +41,9 @@ class GrepTool(Tool):
     }
     output_type = "string"
     
-    def forward(self, pattern: str, include: Optional[str] = None, path: Optional[str] = None) -> Dict:
+    def forward(self, pattern: str, include: Optional[str] = None, path: Optional[str] = None) -> Union[ToolOutput, Dict, str]:
         """
-        Search for files containing content that matches the given regex pattern.
+        Search for files containing content that matches the given regex pattern with rich output.
         
         Args:
             pattern: The regular expression pattern to search for in file contents
@@ -50,7 +51,7 @@ class GrepTool(Tool):
             path: The directory to search in (defaults to current working directory)
             
         Returns:
-            A dictionary with matching file paths and metadata
+            A ToolOutput object for rich display
         """
         start_time = time.time()
         search_path = path or os.getcwd()
@@ -62,66 +63,51 @@ class GrepTool(Tool):
             # Compile the regex pattern
             regex = re.compile(pattern)
         except re.error as e:
-            return {
-                "resultForAssistant": f"Error: Invalid regular expression pattern: {str(e)}",
-                "data": {
-                    "filenames": [],
-                    "durationMs": int((time.time() - start_time) * 1000),
-                    "numFiles": 0
-                }
-            }
+            return TextOutput(f"Error: Invalid regular expression pattern: {str(e)}")
         
         # Find files to search
         all_files = self._find_files(search_path, include)
         
         # If no files found to search
         if not all_files:
-            return {
-                "resultForAssistant": "No files found",
-                "data": {
-                    "filenames": [],
-                    "durationMs": int((time.time() - start_time) * 1000),
-                    "numFiles": 0
-                }
-            }
+            return TextOutput(f"No files found matching include pattern: {include or '*'}")
         
-        # Search for pattern in files
-        matching_files = []
+        # Search for pattern in files and get matches
+        file_matches = []
+        match_count = 0
         for file_path in all_files:
             try:
-                if self._file_contains_pattern(file_path, regex):
-                    matching_files.append(file_path)
+                file_match_info = self._get_file_matches(file_path, regex)
+                if file_match_info:
+                    file_matches.append(file_match_info)
+                    match_count += len(file_match_info['matches'])
             except Exception:
                 # Silently skip files that can't be read
                 continue
         
         # Sort results by modification time (newest first)
-        matching_files.sort(key=lambda f: os.path.getmtime(f), reverse=True)
+        file_matches.sort(key=lambda f: os.path.getmtime(f['path']), reverse=True)
         
-        # Truncate to max 100 matches
-        files_found = len(matching_files)
-        truncated = len(matching_files) > 100
-        matching_files = matching_files[:100]
+        # Check if we found any matches
+        if not file_matches:
+            return TextOutput(f"No matches found for pattern '{pattern}' in {len(all_files)} files")
+        
+        # Truncate to max 10 files for display
+        truncated = len(file_matches) > 10
+        displayed_files = file_matches[:10]
         
         duration_ms = int((time.time() - start_time) * 1000)
         
-        # Format results
-        if not matching_files:
-            result_for_assistant = "No files found"
-        else:
-            result_for_assistant = f"Found {files_found} file{'s' if len(matching_files) > 1 else ''}\n"
-            result_for_assistant += "\n".join(matching_files)
-            if truncated:
-                result_for_assistant += "\n(Results are truncated. Consider using a more specific path or pattern.)"
-        
-        return {
-            "resultForAssistant": result_for_assistant,
-            "data": {
-                "filenames": matching_files,
-                "durationMs": duration_ms,
-                "numFiles": len(matching_files)
-            }
-        }
+        # Format results for display
+        return self._format_results(
+            pattern=pattern,
+            file_matches=displayed_files,
+            total_files=len(file_matches),
+            truncated=truncated,
+            duration_ms=duration_ms,
+            search_path=search_path,
+            match_count=match_count
+        )
     
     def _find_files(self, base_path: str, include: Optional[str] = None) -> List[str]:
         """
@@ -194,38 +180,163 @@ class GrepTool(Tool):
             
         return unique_files
     
-    def _file_contains_pattern(self, file_path: str, regex: re.Pattern) -> bool:
+    def _get_file_matches(self, file_path: str, regex: re.Pattern) -> Optional[Dict[str, Any]]:
         """
-        Check if a file contains the regex pattern.
+        Get matches for a regex pattern in a file with context.
         
         Args:
             file_path: Path to the file to search
             regex: Compiled regex pattern
             
         Returns:
-            True if the file contains the pattern, False otherwise
+            Dictionary with match information or None if no matches
         """
         # Skip binary files and other problematic file types
         if self._is_binary_file(file_path):
-            return False
+            return None
         
         # Try different encodings
         encodings = ['utf-8', 'latin-1', 'cp1252']
         
+        file_content = None
         for encoding in encodings:
             try:
                 with open(file_path, 'r', encoding=encoding) as f:
-                    for line in f:
-                        if regex.search(line):
-                            return True
+                    file_content = f.read()
                 break  # Successfully read file, break the encoding loop
             except UnicodeDecodeError:
                 continue
             except Exception:
                 # Skip files that can't be read
-                break
+                return None
+        
+        if file_content is None:
+            return None
+            
+        # Get all matches with context
+        lines = file_content.split('\n')
+        matches = []
+        
+        for i, line in enumerate(lines):
+            for match in regex.finditer(line):
+                # Get context (3 lines before and after)
+                start_line = max(0, i - 3)
+                end_line = min(len(lines) - 1, i + 3)
                 
-        return False
+                # Extract the match and context
+                context_lines = lines[start_line:end_line + 1]
+                match_line_index = i - start_line
+                
+                matches.append({
+                    'line_number': i + 1,  # 1-indexed line number
+                    'context': context_lines,
+                    'match_line_index': match_line_index,
+                    'match_span': match.span(),
+                    'match_text': match.group(0)
+                })
+                
+        if not matches:
+            return None
+            
+        # Get file extension for syntax highlighting
+        _, ext = os.path.splitext(file_path)
+        language = self._get_language_for_extension(ext)
+        
+        return {
+            'path': file_path,
+            'language': language,
+            'matches': matches,
+            'modified': os.path.getmtime(file_path)
+        }
+    
+    def _format_results(
+        self, 
+        pattern: str,
+        file_matches: List[Dict[str, Any]],
+        total_files: int,
+        truncated: bool,
+        duration_ms: int,
+        search_path: str,
+        match_count: int
+    ) -> ToolOutput:
+        """
+        Format search results for rich display.
+        
+        Args:
+            pattern: The search pattern
+            file_matches: List of file match information
+            total_files: Total number of matching files
+            truncated: Whether results were truncated
+            duration_ms: Search duration in milliseconds
+            search_path: Path that was searched
+            match_count: Total number of matches
+            
+        Returns:
+            A ToolOutput object for rich display
+        """
+        # Create a summary with statistics
+        summary = f"Found {match_count} matches in {total_files} files"
+        if truncated:
+            summary += f" (showing first 10 files)"
+        summary += f" for pattern '{pattern}' in {search_path}"
+        summary += f" ({duration_ms}ms)"
+        
+        # Check if we should show all matches as a table
+        if total_files <= 5:
+            # For small result sets, we'll show all matches with context
+            result = f"{summary}\n\n"
+            
+            for file_info in file_matches:
+                file_path = file_info['path']
+                language = file_info['language']
+                
+                result += f"File: {file_path}\n"
+                
+                for match in file_info['matches'][:5]:  # Limit to 5 matches per file
+                    line_number = match['line_number']
+                    context_lines = match['context']
+                    match_line_index = match['match_line_index']
+                    
+                    # Format context with line numbers and highlighting
+                    context_with_numbers = ""
+                    for i, line in enumerate(context_lines):
+                        line_num = line_number - match_line_index + i
+                        
+                        # Highlight the match line
+                        if i == match_line_index:
+                            # Add markers for the match
+                            match_start, match_end = match['match_span']
+                            highlighted_line = line[:match_start] + "§" + line[match_start:match_end] + "§" + line[match_end:]
+                            context_with_numbers += f"{line_num:4d} | {highlighted_line}\n"
+                        else:
+                            context_with_numbers += f"{line_num:4d} | {line}\n"
+                    
+                    result += context_with_numbers + "\n"
+                
+                # If we have more matches than shown
+                if len(file_info['matches']) > 5:
+                    result += f"... and {len(file_info['matches']) - 5} more matches in this file\n\n"
+            
+            # Return as CodeOutput for syntax highlighting
+            return CodeOutput(result, language="text", line_numbers=False)
+        else:
+            # For larger result sets, just return a file list
+            file_list = []
+            for file_info in file_matches:
+                match_count = len(file_info['matches'])
+                first_line = file_info['matches'][0]['line_number'] if match_count > 0 else 0
+                
+                file_list.append({
+                    'name': os.path.basename(file_info['path']),
+                    'path': file_info['path'],
+                    'is_dir': False,
+                    'matches': match_count,
+                    'first_match': f"line {first_line}",
+                    'size': os.path.getsize(file_info['path'])
+                })
+            
+            # Return as FileListOutput with a custom path showing the pattern
+            return FileListOutput(file_list, path=f"Search results for '{pattern}' in {search_path}")
     
     def _is_binary_file(self, file_path: str) -> bool:
         """
@@ -292,6 +403,64 @@ class GrepTool(Tool):
             return True
             
         return False
+    
+    def _get_language_for_extension(self, ext: str) -> str:
+        """
+        Get the language name for syntax highlighting based on file extension.
+        
+        Args:
+            ext: File extension including the dot (e.g. ".py")
+            
+        Returns:
+            Language name for syntax highlighting
+        """
+        ext = ext.lower()
+        
+        # Mapping of extensions to languages
+        language_map = {
+            # Python
+            '.py': 'python',
+            '.pyx': 'python',
+            # JavaScript/TypeScript
+            '.js': 'javascript',
+            '.jsx': 'jsx',
+            '.ts': 'typescript',
+            '.tsx': 'tsx',
+            # Web
+            '.html': 'html',
+            '.htm': 'html',
+            '.css': 'css',
+            '.scss': 'scss',
+            '.sass': 'sass',
+            # Data formats
+            '.json': 'json',
+            '.yaml': 'yaml',
+            '.yml': 'yaml',
+            '.xml': 'xml',
+            '.toml': 'toml',
+            # Shell
+            '.sh': 'bash',
+            '.bash': 'bash',
+            # C-family languages
+            '.c': 'c',
+            '.cpp': 'cpp',
+            '.cc': 'cpp',
+            '.h': 'c',
+            '.hpp': 'cpp',
+            '.cs': 'csharp',
+            '.java': 'java',
+            # Other languages
+            '.go': 'go',
+            '.rs': 'rust',
+            '.rb': 'ruby',
+            '.php': 'php',
+            '.md': 'markdown',
+            '.markdown': 'markdown'
+        }
+        
+        return language_map.get(ext, 'text')
+
 
 # Export the tool as an instance that can be directly used
 grep_tool = GrepTool()
+enhanced_grep_tool = grep_tool  # Alias for backward compatibility

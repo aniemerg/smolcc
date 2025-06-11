@@ -1,9 +1,10 @@
 # SmolCC
 
-A lightweight code assistant with tool-using capabilities built on HuggingFace's smolagents. Inspired by the tool use in Claude Code, this project provides a simple, easy-to-use interface with access to a range of tools for file manipulation, text search, and command execution.
+A lightweight code assistant with tool-using capabilities built on HuggingFace's smolagents. Inspired by the tool use in Claude Code, this project provides a simple, easy-to-use interface with access to a range of tools for file manipulation, text search, and command execution. Features rich terminal UI output for an improved user experience.
 
 ## Features
 
+- Rich terminal UI with syntax highlighting and formatted output
 - Command-line interface for code assistance
 - Integration with various tools:
   - `BashTool` - Execute bash commands
@@ -13,6 +14,7 @@ A lightweight code assistant with tool-using capabilities built on HuggingFace's
   - `LSTool` - List directory contents
   - `ReplaceTool` - Create or overwrite files
   - `ViewTool` - Read files
+  - `UserInputTool` - Ask for user input during execution
 
 ## Installation
 
@@ -52,7 +54,7 @@ A lightweight code assistant with tool-using capabilities built on HuggingFace's
 Run SmolCC from the command line:
 
 ```bash
-python main.py "What files are in the current directory?"
+python smolcc.py "What files are in the current directory?"
 ```
 
 ### Interactive mode
@@ -60,16 +62,32 @@ python main.py "What files are in the current directory?"
 Start an interactive session:
 
 ```bash
-python main.py -i
+python smolcc.py -i
 ```
 
 Then enter your queries at the prompt.
+
+### Additional options
+
+SmolCC supports several command-line options:
+
+```bash
+python smolcc.py --help
+```
+
+Options include:
+- `-i, --interactive`: Run in interactive mode
+- `--cwd PATH`: Set the working directory
+- `--no-log`: Disable logging to file
+- `--log-file PATH`: Specify a custom log file path
 
 ## Development
 
 This project uses a standard Python package structure:
 
 - `smolcc/` - The main package
+  - `agent.py` - The main agent implementation
+  - `tool_output.py` - Output formatting classes
   - `tools/` - Tool implementations
     - `tests/` - Unit tests for tools
 

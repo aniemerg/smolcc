@@ -3,24 +3,17 @@
 This package contains the implementations of tools that can be used by SmolCC.
 """
 
-# Original tools
-from .bash_tool import BashTool
+# Import tool instances
+from .bash_tool import bash_tool as BashTool
+from .glob_tool import glob_tool as GlobTool
+from .grep_tool import grep_tool as GrepTool
+from .ls_tool import ls_tool as LSTool
+from .view_tool import view_tool as ViewTool
 from .edit_tool import FileEditTool as EditTool
-from .glob_tool import GlobTool
-from .grep_tool import GrepTool
-from .ls_tool import LSTool
 from .replace_tool import WriteTool as ReplaceTool
-from .view_tool import ViewTool
-
-# Enhanced tools with rich output
-from .enhanced_ls_tool import enhanced_ls_tool as EnhancedLSTool
-from .enhanced_view_tool import enhanced_view_tool as EnhancedViewTool
-from .enhanced_glob_tool import enhanced_glob_tool as EnhancedGlobTool
-from .enhanced_grep_tool import enhanced_grep_tool as EnhancedGrepTool
-from .enhanced_bash_tool import enhanced_bash_tool as EnhancedBashTool
+from .user_input_tool import user_input_tool as UserInputTool
 
 __all__ = [
-    # Original tools
     "BashTool",
     "EditTool",
     "GlobTool",
@@ -28,11 +21,5 @@ __all__ = [
     "LSTool",
     "ReplaceTool",
     "ViewTool",
-    
-    # Enhanced tools
-    "EnhancedLSTool",
-    "EnhancedViewTool",
-    "EnhancedGlobTool",
-    "EnhancedGrepTool",
-    "EnhancedBashTool",
+    "UserInputTool",
 ]
