@@ -9,7 +9,26 @@ from pathlib import Path
 def get_directory_structure(start_path, ignore_patterns=None):
     """Generate a nested directory structure as a string."""
     if ignore_patterns is None:
-        ignore_patterns = ['.git', '__pycache__', '*.pyc']
+        # Add more patterns to ignore:
+        # - Hidden directories (.*)
+        # - Virtual environment directories (venv, env, site-packages)
+        # - Build and dist directories
+        # - Cache directories
+        # - Common dependency locations
+        ignore_patterns = [
+            '.git', '__pycache__', '*.pyc', 
+            '.*',  # All hidden directories 
+            'venv', 'env', '.venv', '.env',
+            'dist', 'build', 'node_modules',
+            '*.egg-info', '*.dist-info',
+            'site-packages', 'lib', 'include',
+            'bin', '.cache', 'tmp', 'temp',
+            'typings', 'stubs', 'vendored',
+            '.pytest_cache', '.coverage',
+            '.vscode', '.idea', '.atom',
+            'vendor', 'third_party', 'external',
+            'htmlcov', 'coverage', 'benchmark'
+        ]
     
     # Get the working directory path
     cwd = Path(start_path).resolve()
@@ -19,33 +38,74 @@ def get_directory_structure(start_path, ignore_patterns=None):
     
     # We'll use a list to store the structure
     dir_structure = []
+    max_files = 100  # Limit total number of files to avoid cluttering
+    file_count = 0
     
     for root, dirs, files in os.walk(cwd, topdown=True):
-        # Skip ignored directories
+        # Skip ignored directories - both exact matches and pattern matches
         dirs[:] = [d for d in dirs if not any(
-            d == pattern or (pattern.startswith('*') and d.endswith(pattern[1:]))
+            d == pattern or 
+            (pattern.startswith('*') and d.endswith(pattern[1:])) or
+            (pattern == '.*' and d.startswith('.'))
             for pattern in ignore_patterns
         )]
+        
+        # Skip if we've reached max files
+        if file_count >= max_files:
+            # Add a note that we've limited output
+            if len(dir_structure) > 0 and not dir_structure[-1].endswith("(truncated)"):
+                dir_structure.append("  ... (truncated for brevity)")
+            break
         
         level = root.replace(str(cwd), '').count(os.sep)
         indent = '  ' * (level + 1)
         rel_path = os.path.relpath(root, start_path)
+        
+        # Skip if this path contains any ignored pattern components
+        if any(pattern in rel_path.split(os.sep) for pattern in ignore_patterns if not pattern.startswith('*')):
+            continue
         
         if rel_path != '.':
             path_parts = rel_path.split(os.sep)
             dir_name = path_parts[-1]
             dir_structure.append(f"{indent}- {dir_name}/")
         
+        # Limit files per directory to avoid cluttering
+        max_files_per_dir = 10
+        dir_files = []
+        
         sub_indent = '  ' * (level + 2)
         for file in sorted(files):
             # Skip ignored files
             if any(
                 file == pattern or 
-                (pattern.startswith('*') and file.endswith(pattern[1:]))
+                (pattern.startswith('*') and file.endswith(pattern[1:])) or
+                (pattern == '.*' and file.startswith('.'))
                 for pattern in ignore_patterns
             ):
                 continue
-            dir_structure.append(f"{sub_indent}- {file}")
+                
+            # Skip lock files and other large generated files
+            if file.endswith(('.lock', '.sum', '.mod', '.bin', '.whl')):
+                continue
+                
+            dir_files.append(f"{sub_indent}- {file}")
+            file_count += 1
+            
+            # Stop if we've reached max files
+            if file_count >= max_files:
+                break
+                
+        # Add directory files (limited)
+        if len(dir_files) > max_files_per_dir:
+            dir_structure.extend(dir_files[:max_files_per_dir])
+            dir_structure.append(f"{sub_indent}  ... ({len(dir_files) - max_files_per_dir} more files)")
+        else:
+            dir_structure.extend(dir_files)
+    
+    # If we reached the max files, add a note
+    if file_count >= max_files:
+        dir_structure.append("  ... (truncated for brevity)")
     
     return "".join([structure] + [f"{line}\n" for line in dir_structure])
 

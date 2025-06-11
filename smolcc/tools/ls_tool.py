@@ -1,43 +1,46 @@
 """
-LSTool for SmolCC - Directory listing tool
+LS Tool for SmolCC - Directory listing tool with rich output
 
-This tool lists files and directories in a given path.
+This tool lists files and directories in a given path with rich formatting.
 """
 
 import os
 import fnmatch
-from typing import List, Dict, Any, Optional, Set, Tuple
+import stat
+from datetime import datetime
+from typing import List, Dict, Any, Optional, Set, Tuple, Union
 
 from smolagents import Tool
+from smolcc.tool_output import FileListOutput, TextOutput, ToolOutput
 
 # Constants
 MAX_FILES = 1000
-TRUNCATED_MESSAGE = f"There are more than {MAX_FILES} files in the repository. Use the LS tool (passing a specific path), Bash tool, and other tools to explore nested directories. The first {MAX_FILES} files and directories are included below:\n\n"
+TRUNCATED_MESSAGE = f"There are more than {MAX_FILES} files in the repository."
 
 
 class LSTool(Tool):
     """
-    Lists files and directories in a given path with a tree-like structure.
+    Lists files and directories in a given path with rich formatting.
     """
     
     name = "LS"
-    description = "Displays a directory’s contents—files and sub-directories—at the location specified by **path**. The **path** argument must be an absolute path (it cannot be relative). You may optionally supply an **ignore** parameter: an array of glob patterns that should be skipped. If you already know the directories you want to scan, the Glob and Grep tools are generally the better choice."
+    description = "Displays a directory's contents—files and sub-directories—at the location specified by **path**. The **path** argument must be an absolute path (it cannot be relative). You may optionally supply an **ignore** parameter: an array of glob patterns that should be skipped. If you already know the directories you want to scan, the Glob and Grep tools are generally the better choice."
     inputs = {
         "path": {"type": "string", "description": "The absolute path to the directory to list (must be absolute, not relative)"},
         "ignore": {"type": "array", "description": "List of glob patterns to ignore", "items": {"type": "string"}, "nullable": True}
     }
     output_type = "string"
     
-    def forward(self, path: str, ignore: Optional[List[str]] = None) -> str:
+    def forward(self, path: str, ignore: Optional[List[str]] = None) -> Union[ToolOutput, str]:
         """
-        List files and directories in the given path.
+        List files and directories in the given path with rich output.
         
         Args:
             path: The absolute path to the directory to list
             ignore: Optional list of glob patterns to ignore
             
         Returns:
-            A tree-like representation of the directory contents
+            A FileListOutput object for rich display
         """
         # Ensure path is absolute
         if not os.path.isabs(path):
@@ -45,83 +48,74 @@ class LSTool(Tool):
             
         # Check if path exists and is a directory
         if not os.path.exists(path):
-            return f"Error: Path '{path}' does not exist"
+            return TextOutput(f"Error: Path '{path}' does not exist")
         if not os.path.isdir(path):
-            return f"Error: Path '{path}' is not a directory"
+            return TextOutput(f"Error: Path '{path}' is not a file")
         
-        # Get the list of all paths in the directory
-        all_paths = self._list_directory(path, ignore or [])
+        # Get file information for the directory
+        file_info = self._get_directory_contents(path, ignore or [])
         
-        # Build tree structure from the paths
-        tree = self._create_file_tree(all_paths)
-        
-        # Format the tree as a string
-        truncated = len(all_paths) >= MAX_FILES
-        prefix = TRUNCATED_MESSAGE if truncated else ""
-        tree_output = self._print_tree(tree, path)
-        
-        # Return result with safety warning
-        result = f"{prefix}{tree_output}"
-        return result 
-        
-    def _list_directory(self, initial_path: str, ignore_patterns: List[str]) -> List[str]:
+        # Return as FileListOutput for rich display
+        return FileListOutput(file_info, path)
+    
+    def _get_directory_contents(self, path: str, ignore_patterns: List[str]) -> List[Dict[str, Any]]:
         """
-        Lists all files and directories using breadth-first traversal.
+        Get information about files and directories in the given path.
         
         Args:
-            initial_path: The starting directory path
+            path: The directory path to list
             ignore_patterns: List of glob patterns to ignore
             
         Returns:
-            List of relative paths (directories ending with /)
+            List of dictionaries with file information
         """
-        results = []
-        queue = [initial_path]
-        file_count = 0
+        file_info = []
         
-        while queue and file_count < MAX_FILES:
-            path = queue.pop(0)  # Dequeue from left (FIFO)
+        try:
+            # Get all entries in the directory
+            entries = os.listdir(path)
             
-            # Skip if this path should be filtered
-            if self._should_skip(path, ignore_patterns):
-                continue
+            # Sort entries alphabetically (directories first, then files)
+            entries.sort()
+            
+            # Process each entry
+            for entry in entries:
+                entry_path = os.path.join(path, entry)
                 
-            # Add this path to results (except the initial path)
-            if path != initial_path:
-                # Get relative path and normalize separators
-                rel_path = os.path.relpath(path, initial_path).replace(os.path.sep, '/')
-                # Ensure directories end with /
-                if os.path.isdir(path):
-                    if not rel_path.endswith('/'):
-                        rel_path += '/'
-                    results.append(rel_path)
-                else:
-                    results.append(rel_path)
-                    file_count += 1
-            
-            # If it's a directory, add its children to the queue
-            if os.path.isdir(path):
-                try:
-                    # Get all entries in the directory
-                    entries = []
-                    for item in os.listdir(path):
-                        item_path = os.path.join(path, item)
-                        entries.append(item_path)
-                    
-                    # Sort entries alphabetically
-                    entries.sort()
-                    
-                    # Add entries to queue
-                    for item_path in entries:
-                        if not self._should_skip(item_path, ignore_patterns):
-                            queue.append(item_path)
-                except (PermissionError, FileNotFoundError):
+                # Skip if this path should be filtered
+                if self._should_skip(entry_path, ignore_patterns):
                     continue
+                
+                try:
+                    # Get file stats
+                    stats = os.stat(entry_path)
+                    is_dir = os.path.isdir(entry_path)
+                    
+                    # Create file info dictionary
+                    info = {
+                        "name": entry,
+                        "is_dir": is_dir,
+                        "size": stats.st_size,
+                        "modified": int(stats.st_mtime),
+                        "modified_date": datetime.fromtimestamp(stats.st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
+                        "path": entry_path
+                    }
+                    
+                    file_info.append(info)
+                    
+                    if len(file_info) >= MAX_FILES:
+                        break
+                except (PermissionError, FileNotFoundError):
+                    # Skip entries we can't access
+                    continue
+        except (PermissionError, FileNotFoundError) as e:
+            return [{"name": f"Error listing directory: {str(e)}", "is_dir": False, "size": 0}]
         
-        # Sort results alphabetically
-        results.sort()
-        return results
+        # Sort the list - directories first, then files alphabetically
+        file_info.sort(key=lambda x: (not x["is_dir"], x["name"].lower()))
         
+        return file_info
+    
     def _should_skip(self, path: str, ignore_patterns: List[str]) -> bool:
         """
         Determines if a path should be skipped.
@@ -148,95 +142,8 @@ class LSTool(Tool):
             return True
             
         return False
-    
-    def _create_file_tree(self, sorted_paths: List[str]) -> List[Dict]:
-        """
-        Converts a flat list of paths into a tree structure.
-        
-        Args:
-            sorted_paths: Alphabetically sorted list of relative paths
-            
-        Returns:
-            List of tree nodes representing the directory structure
-        """
-        root = []
-        
-        for path in sorted_paths:
-            parts = path.split('/')
-            current_level = root
-            current_path = ''
-            
-            for i, part in enumerate(parts):
-                if not part:  # Skip empty parts from trailing slashes
-                    continue
-                    
-                current_path = f"{current_path}/{part}" if current_path else part
-                is_directory = i < len(parts) - 1 or path.endswith('/')
-                
-                # Check if this node already exists
-                existing_node = None
-                for node in current_level:
-                    if node['name'] == part:
-                        existing_node = node
-                        break
-                        
-                if existing_node:
-                    # Move to existing node's children
-                    current_level = existing_node.get('children', [])
-                else:
-                    # Create new node
-                    new_node = {
-                        'name': part,
-                        'path': current_path,
-                        'type': 'directory' if is_directory else 'file'
-                    }
-                    
-                    if is_directory:
-                        new_node['children'] = []
-                        
-                    current_level.append(new_node)
-                    current_level = new_node.get('children', [])
-        
-        return root
-    
-    def _print_tree(self, tree: List[Dict], root_path: str, level: int = 0, prefix: str = '') -> str:
-        """
-        Formats a tree structure into a string representation.
-        
-        Args:
-            tree: The tree structure to print
-            root_path: The absolute path to the root directory
-            level: Current indentation level
-            prefix: Prefix string for indentation
-            
-        Returns:
-            Formatted string representation of the tree
-        """
-        result = ""
-        
-        # Add absolute path at root level
-        if level == 0:
-            # Ensure root path ends with / for consistency
-            root_path = root_path.rstrip(os.path.sep) + '/'
-            result += f"- {root_path}\n"
-            prefix = "  "
-        
-        for node in tree:
-            # Add the current node with proper formatting
-            node_suffix = "/" if node['type'] == 'directory' else ""
-            result += f"{prefix}- {node['name']}{node_suffix}\n"
-            
-            # Process children recursively if this is a directory
-            if node.get('children'):
-                result += self._print_tree(
-                    node['children'],
-                    root_path,
-                    level + 1,
-                    prefix + "  "
-                )
-        
-        return result
 
 
 # Export the tool as an instance that can be directly used
 ls_tool = LSTool()
+enhanced_ls_tool = ls_tool  # Alias for backward compatibility

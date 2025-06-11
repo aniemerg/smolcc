@@ -1,13 +1,9 @@
 # Development directories
-wip/OpenAGI/
-wip/smolagents/
 tool_descriptions/
 tool_examples/
 
-# Include wip subdirectories that should be tracked
-!wip/
-!wip/tool-comparison-2/
-!wip/tools/
+# wip directory
+wip/
 
 # Exclude specific comparison outputs
 wip/tool-comparison-2/comparison/

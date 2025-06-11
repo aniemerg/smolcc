@@ -1,8 +1,8 @@
 """
-BashTool for SmolCC - Bash command execution tool
+BashTool for SmolCC - Bash command execution tool with rich output
 
-This tool executes bash commands in a persistent shell session.
-It supports command execution with optional timeout and provides safety measures.
+This tool executes bash commands in a persistent shell session and returns
+rich output objects for better display in the terminal.
 """
 
 import os
@@ -12,9 +12,10 @@ import shlex
 import time
 import threading
 import signal
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, Union, Tuple
 
 from smolagents import Tool
+from smolcc.tool_output import ToolOutput, CodeOutput, TextOutput
 
 # Constants
 DEFAULT_TIMEOUT = 1800000  # 30 minutes in milliseconds
@@ -29,11 +30,11 @@ BANNED_COMMANDS = [
 
 class BashTool(Tool):
     """
-    Executes bash commands in a persistent shell session.
+    Executes bash commands in a persistent shell session with rich output.
     """
     
     name = "Bash"
-    description = "Runs a supplied bash command inside a persistent shell session, with an optional timeout, while applying the required safety practices.\n\nBefore you launch the command, complete these steps:\n\n1. Parent Directory Confirmation:\n - If the command will create new folders or files, first employ the LS tool to ensure the parent directory already exists and is the intended location.\n - Example: prior to executing \"mkdir foo/bar\", call LS to verify that \"foo\" exists and is truly the correct parent directory.\n\n2. Safety Screening:\n - To reduce the risk of prompt-injection attacks, some commands are restricted or banned. If you attempt to run a blocked command, you will receive an error message explaining the limitation—pass that explanation along to the User.\n - Confirm that the command is not one of these prohibited commands: alias, curl, curlie, wget, axel, aria2c, nc, telnet, lynx, w3m, links, httpie, xh, http-prompt, chrome, firefox, safari.\n\n3. Perform the Command:\n - Once proper quoting is verified, execute the command.\n - Capture the command’s output.\n\nOperational notes:\n - Supplying the command argument is mandatory.\n - A timeout in milliseconds may be provided (up to 600000 ms / 10 minutes). If omitted, the default timeout is 30 minutes.\n - If the output exceeds 30000 characters, it will be truncated before being returned.\n - VERY IMPORTANT: You MUST avoid search utilities like find and grep; instead, rely on GrepTool, GlobTool, or dispatch_agent. Likewise, avoid using cat, head, tail, and ls for reading—use View and LS.\n - When sending several commands, combine them with ';' or '&&' rather than newlines (newlines are acceptable only inside quoted strings).\n - IMPORTANT: All commands run within the same shell session. Environment variables, virtual environments, the current directory, and other state persist between commands. For instance, any environment variable you set will remain in subsequent commands.\n - Try to keep the working directory unchanged by using absolute paths and avoiding cd, unless the User explicitly instructs otherwise."
+    description = "Runs a supplied bash command inside a persistent shell session, with an optional timeout, while applying the required safety practices.\n\nBefore you launch the command, complete these steps:\n\n1. Parent Directory Confirmation:\n - If the command will create new folders or files, first employ the LS tool to ensure the parent directory already exists and is the intended location.\n - Example: prior to executing \"mkdir foo/bar\", call LS to verify that \"foo\" exists and is truly the correct parent directory.\n\n2. Safety Screening:\n - To reduce the risk of prompt-injection attacks, some commands are restricted or banned. If you attempt to run a blocked command, you will receive an error message explaining the limitation—pass that explanation along to the User.\n - Confirm that the command is not one of these prohibited commands: alias, curl, curlie, wget, axel, aria2c, nc, telnet, lynx, w3m, links, httpie, xh, http-prompt, chrome, firefox, safari.\n\n3. Perform the Command:\n - Once proper quoting is verified, execute the command.\n - Capture the command's output.\n\nOperational notes:\n - Supplying the command argument is mandatory.\n - A timeout in milliseconds may be provided (up to 600000 ms / 10 minutes). If omitted, the default timeout is 30 minutes.\n - If the output exceeds 30000 characters, it will be truncated before being returned.\n - VERY IMPORTANT: You MUST avoid search utilities like find and grep; instead, rely on GrepTool, GlobTool, or dispatch_agent. Likewise, avoid using cat, head, tail, and ls for reading—use View and LS.\n - When sending several commands, combine them with ';' or '&&' rather than newlines (newlines are acceptable only inside quoted strings).\n - IMPORTANT: All commands run within the same shell session. Environment variables, virtual environments, the current directory, and other state persist between commands. For instance, any environment variable you set will remain in subsequent commands.\n - Try to keep the working directory unchanged by using absolute paths and avoiding cd, unless the User explicitly instructs otherwise."
     inputs = {
         "command": {"type": "string", "description": "The command to execute"},
         "timeout": {"type": "number", "description": "Optional timeout in milliseconds (max 600000)", "nullable": True}
@@ -41,7 +42,7 @@ class BashTool(Tool):
     output_type = "string"
     
     def __init__(self):
-        """Initialize the BashTool with a persistent shell process."""
+        """Initialize the EnhancedBashTool with a persistent shell process."""
         super().__init__()
         self.shell = None
         self.shell_process = None
@@ -63,16 +64,16 @@ class BashTool(Tool):
         # Set up a unique marker for command output separation
         self.output_marker = f"__COMMAND_OUTPUT_MARKER_{int(time.time())}_"
     
-    def forward(self, command: str, timeout: Optional[int] = None) -> str:
+    def forward(self, command: str, timeout: Optional[int] = None) -> Union[ToolOutput, str]:
         """
-        Execute a bash command in a persistent shell session.
+        Execute a bash command in a persistent shell session with rich output.
         
         Args:
             command: The bash command to execute
             timeout: Optional timeout in milliseconds (max 600000)
             
         Returns:
-            The command output or error message
+            A ToolOutput object for rich display
         """
         # Check if shell process is alive, restart if needed
         if self.shell_process is None or self.shell_process.poll() is not None:
@@ -80,7 +81,7 @@ class BashTool(Tool):
         
         # Security check for banned commands
         if self._is_banned_command(command):
-            return f"Error: Command contains one or more banned commands: {', '.join(BANNED_COMMANDS)}. Please use alternative tools for these operations."
+            return TextOutput(f"Error: Command contains one or more banned commands: {', '.join(BANNED_COMMANDS)}. Please use alternative tools for these operations.")
         
         # Set timeout
         if timeout is None:
@@ -91,11 +92,20 @@ class BashTool(Tool):
         
         try:
             # Execute command with timeout
-            return self._execute_command_with_timeout(command, timeout_sec)
+            output, is_error = self._execute_command_with_timeout(command, timeout_sec)
+            
+            # Determine if the output is code based on the command
+            if self._is_code_command(command):
+                language = self._guess_language_from_command(command)
+                return CodeOutput(output, language=language)
+            elif is_error:
+                return TextOutput(output)
+            else:
+                return TextOutput(output)
         except Exception as e:
-            return f"Error executing command: {str(e)}"
+            return TextOutput(f"Error executing command: {str(e)}")
     
-    def _execute_command_with_timeout(self, command: str, timeout_sec: float) -> str:
+    def _execute_command_with_timeout(self, command: str, timeout_sec: float) -> Tuple[str, bool]:
         """
         Execute a command with a timeout in the persistent shell.
         
@@ -104,7 +114,7 @@ class BashTool(Tool):
             timeout_sec: Timeout in seconds
             
         Returns:
-            The command output or error message
+            Tuple of (command output, is_error)
         """
         # Add echo commands to mark the beginning and end of output
         full_command = f"{command}; echo {self.output_marker}\n"
@@ -122,7 +132,7 @@ class BashTool(Tool):
             # Check if we've exceeded the timeout
             if time.time() - start_time > timeout_sec:
                 self._kill_current_command()
-                return f"Command timed out after {timeout_sec} seconds"
+                return f"Command timed out after {timeout_sec} seconds", True
             
             # Try to read a line from stdout or stderr
             output_line, is_stderr = self._read_line_nonblocking_with_source()
@@ -166,32 +176,11 @@ class BashTool(Tool):
         
         # If there's stderr content, combine them appropriately
         if stderr:
-            return self._format_result_with_stderr(stdout, stderr)
+            return self._format_result_with_stderr(stdout, stderr), True
             
-        return stdout
+        return stdout, False
     
-    def _read_line_nonblocking(self) -> Optional[str]:
-        """
-        Try to read a line from stdout or stderr without blocking.
-        
-        Returns:
-            A line of output, or None if no data is available
-        """
-        # Check if there's data available on stdout
-        if self.shell_process.stdout.readable():
-            line = self.shell_process.stdout.readline()
-            if line:
-                return line
-        
-        # Check if there's data available on stderr
-        if self.shell_process.stderr.readable():
-            line = self.shell_process.stderr.readline()
-            if line:
-                return line
-        
-        return None
-        
-    def _read_line_nonblocking_with_source(self) -> tuple[Optional[str], bool]:
+    def _read_line_nonblocking_with_source(self) -> Tuple[Optional[str], bool]:
         """
         Try to read a line from stdout or stderr without blocking.
         Also returns whether the line came from stderr.
@@ -250,47 +239,117 @@ class BashTool(Tool):
             True if the command contains a banned command, False otherwise
         """
         # Split the command into tokens
-        tokens = shlex.split(command)
-        
-        # Check each token against the banned commands list
-        for token in tokens:
-            if token in BANNED_COMMANDS:
-                return True
+        try:
+            tokens = shlex.split(command)
             
-            # Also check for commands with paths
-            cmd_name = os.path.basename(token)
-            if cmd_name in BANNED_COMMANDS:
-                return True
+            # Check each token against the banned commands list
+            for token in tokens:
+                if token in BANNED_COMMANDS:
+                    return True
+                
+                # Also check for commands with paths
+                cmd_name = os.path.basename(token)
+                if cmd_name in BANNED_COMMANDS:
+                    return True
+        except Exception:
+            # If we can't parse the command, be conservative and allow it
+            # (the shell will fail if it's invalid syntax anyway)
+            pass
         
         return False
-
-    def _contains_search_or_read_commands(self, command: str) -> bool:
+    
+    def _is_code_command(self, command: str) -> bool:
         """
-        Check if a command contains search or read commands that should be
-        replaced with specialized tools.
+        Determine if a command likely produces code output.
         
         Args:
             command: The command to check
             
         Returns:
-            True if the command contains a search or read command, False otherwise
+            True if the command likely produces code output, False otherwise
         """
-        # Define patterns for search and read commands
-        patterns = [
-            r'\bgrep\b', r'\bfind\b',  # Search commands
-            r'\bcat\b', r'\bhead\b', r'\btail\b', r'\bless\b', r'\bmore\b', r'\bls\b'  # Read commands
+        # Commands that often produce code-like output
+        code_commands = [
+            # File listing commands (that show source code)
+            "cat", "head", "tail", "less", "more", "type",
+            # Programming language commands
+            "python", "python3", "node", "npm", "npx", "ruby", "perl", "php", 
+            "go", "rust", "cargo", "java", "javac", "scala", "clang", "gcc",
+            # Build/Config commands
+            "cmake", "make", "bazel", "gradle", "maven", "ant", "pip", 
+            # Source control
+            "git diff", "git show", "svn diff",
+            # File operations on code
+            "diff", "patch"
         ]
         
-        # Check each pattern
-        for pattern in patterns:
-            if re.search(pattern, command):
-                # Avoid flagging these commands when they're part of a word or in a comment
-                tokens = shlex.split(command)
-                for token in tokens:
-                    if re.match(f'^{pattern[2:-2]}$', token):
-                        return True
+        try:
+            # Check if the command starts with any of the code commands
+            for code_cmd in code_commands:
+                if command.startswith(code_cmd + " ") or command == code_cmd:
+                    return True
+                
+            # Check for shell script syntax that might indicate code
+            if re.search(r'\bfor\b.*\bin\b.*\bdo\b', command) or \
+               re.search(r'\bwhile\b.*\bdo\b', command) or \
+               re.search(r'\bif\b.*\bthen\b', command) or \
+               re.search(r'\bcase\b.*\bin\b', command):
+                return True
+                
+        except Exception:
+            # If we can't parse the command, assume it's not code
+            pass
         
         return False
+    
+    def _guess_language_from_command(self, command: str) -> str:
+        """
+        Guess the programming language based on the command.
+        
+        Args:
+            command: The command to analyze
+            
+        Returns:
+            Language name for syntax highlighting
+        """
+        # Map commands to languages
+        command_language_map = {
+            "python": "python",
+            "python3": "python",
+            "node": "javascript",
+            "npm": "javascript",
+            "npx": "javascript",
+            "ruby": "ruby",
+            "perl": "perl",
+            "php": "php",
+            "go": "go",
+            "rust": "rust",
+            "cargo": "rust",
+            "java": "java",
+            "javac": "java",
+            "scala": "scala",
+            "clang": "c",
+            "gcc": "c"
+        }
+        
+        # Check command start for language hints
+        for cmd, lang in command_language_map.items():
+            if command.startswith(cmd + " ") or command == cmd:
+                return lang
+        
+        # Check if it's a git diff or git show command
+        if command.startswith("git diff") or command.startswith("git show"):
+            return "diff"
+        
+        # Check for shell script syntax
+        if re.search(r'\bfor\b.*\bin\b.*\bdo\b', command) or \
+           re.search(r'\bwhile\b.*\bdo\b', command) or \
+           re.search(r'\bif\b.*\bthen\b', command) or \
+           re.search(r'\bcase\b.*\bin\b', command):
+            return "bash"
+        
+        # Default to bash for most commands
+        return "bash"
         
     def _format_echo_output(self, output: str) -> str:
         """
@@ -371,3 +430,4 @@ class BashTool(Tool):
 
 # Export the tool as an instance that can be directly used
 bash_tool = BashTool()
+enhanced_bash_tool = bash_tool  # Alias for backward compatibility

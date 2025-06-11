@@ -12,6 +12,7 @@ import json
 from typing import Dict, Any
 
 from smolcc.tools.bash_tool import bash_tool
+from smolcc.tool_output import ToolOutput, TextOutput
 
 # Constants
 TEST_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -64,27 +65,31 @@ class BashToolTests(unittest.TestCase):
         """Test a simple echo command."""
         test_data = EXPECTED_OUTPUTS["simple_command"]
         result = bash_tool.forward(**test_data["inputs"])
-        self.assertEqual(result, test_data["expected"])
+        self.assertIsInstance(result, ToolOutput)
+        self.assertEqual(str(result), test_data["expected"])
 
     def test_environment_variables(self):
         """Test environment variable persistence."""
         test_data = EXPECTED_OUTPUTS["environment_variables"]
         result = bash_tool.forward(**test_data["inputs"])
-        self.assertEqual(result, test_data["expected"])
+        self.assertIsInstance(result, ToolOutput)
+        self.assertEqual(str(result), test_data["expected"])
 
     def test_complex_command_pipeline(self):
         """Test a more complex command with piping."""
         test_data = EXPECTED_OUTPUTS["complex_command_pipeline"]
         result = bash_tool.forward(**test_data["inputs"])
-        self.assertEqual(result, test_data["expected"])
+        self.assertIsInstance(result, ToolOutput)
+        self.assertEqual(str(result), test_data["expected"])
 
     def test_directory_listing_with_details(self):
         """Test listing a directory with details."""
         test_data = EXPECTED_OUTPUTS["directory_listing_with_details"]
         result = bash_tool.forward(**test_data["inputs"])
+        self.assertIsInstance(result, ToolOutput)
         
         # Instead of comparing specific lines which may vary, check for expected files
-        all_actual_lines = result.strip().split('\n')
+        all_actual_lines = str(result).strip().split('\n')
         
         # These should be unique files from the test data directory
         expected_files = ["test_file1.txt", "test_file2.py", "test_js_file.js", "test_typescript_file.ts", "test_config.json"]
